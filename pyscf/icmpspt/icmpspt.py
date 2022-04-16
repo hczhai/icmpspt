@@ -43,11 +43,9 @@ from pyscf.dmrgscf import dmrg_sym
 from pyscf import tools
 import sys
 
-float_precision = numpy.dtype('Float64')
-mpiprefix=""
-executable="/projects/bamu3429/softwares/icpt_test/icpt"
-executable="/projects/bamu3429/softwares/icpt/icpt.big"
-executable="/projects/bamu3429/softwares/icpt/icpt"
+float_precision = numpy.dtype('float64')
+mpiprefix = ""
+executable =  os.popen("which icpt").read().strip()
 #executable="/projects/bamu3429/softwares/icpt_before_me/icpt"
 if not os.path.isfile(executable):
     msg = ('MPSLCC executable %s not found.  Please specify "executable" in %s'
@@ -1337,7 +1335,7 @@ def handle_rdms(mc,pttype,root,nroots,intfolder,bypass=False,filetype='binary',c
     # This is coherent with statement about indexes made in "make_rdm4"
     # This is done with SQA in mind
     if (nelec>3 and not cumulantE4):
-      dm3 = numpy.einsum('ijklmnol', dm4)/(nelec-3)
+      dm3 = numpy.einsum('ijklmnol', dm4, optimize=True)/(nelec-3)
     else:
       dm3 = mc.fcisolver.make_rdm3(state=root, norb=mc.ncas, nelec=mc.nelecas,\
                                    dt=float_precision, filetype=filetype, bypass=bypass, cumulantE4=cumulantE4)
@@ -1346,7 +1344,7 @@ def handle_rdms(mc,pttype,root,nroots,intfolder,bypass=False,filetype='binary',c
     # This is coherent with statement about indexes made in "make_rdm4" and "make_rdm3"
     # This is done with SQA in mind
     if (nelec>2):
-      dm2 = numpy.einsum('ijklmk', dm3)/(nelec-2)
+      dm2 = numpy.einsum('ijklmk', dm3, optimize=True)/(nelec-2)
     else:
       print("UNNECESSARY FOR NOW, right..?")
       exit(0)
@@ -1355,7 +1353,7 @@ def handle_rdms(mc,pttype,root,nroots,intfolder,bypass=False,filetype='binary',c
     # This is coherent with statement about indexes made in "make_rdm4" and "make_rdm3"
     # This is done with SQA in mind
     if (nelec>1):
-      dm1 = numpy.einsum('ijkj', dm2)/(nelec-1)
+      dm1 = numpy.einsum('ijkj', dm2, optimize=True)/(nelec-1)
     else:
       print("UNNECESSARY FOR NOW, right..?")
       exit(0)
@@ -1388,24 +1386,24 @@ def handle_rdms(mc,pttype,root,nroots,intfolder,bypass=False,filetype='binary',c
   # TRACES
   if (not bypass):
     if (not cumulantE4):
-      trace=numpy.einsum('ijklijkl->',dm4)
+      trace=numpy.einsum('ijklijkl->',dm4, optimize=True)
       if abs(trace-nelec*(nelec-1)*(nelec-2)*(nelec-3))<0.000001:
           print('(GOOD) Trace 4RDM: {:8} ={:5}*{:5}*{:5}*{:5}'.format(trace,nelec,nelec-1,nelec-2,nelec-3))
       else:
           print('(BAD)  Trace 4RDM: {:8}!={:5}*{:5}*{:5}*{:5}'.format(trace,nelec,nelec-1,nelec-2,nelec-3))
-    trace=numpy.einsum('ijkijk->',dm3)
+    trace=numpy.einsum('ijkijk->',dm3, optimize=True)
     if abs(trace-nelec*(nelec-1)*(nelec-2))<0.000001:
         print('(GOOD) Trace 3RDM: {:8} ={:5}*{:5}*{:5}'.format(trace,nelec,nelec-1,nelec-2))
     else:
         print('(BAD)  Trace 3RDM: {:8}!={:5}*{:5}*{:5}'.format(trace,nelec,nelec-1,nelec-2))
   else:
     print("")
-  trace=numpy.einsum('ijij->',dm2)
+  trace=numpy.einsum('ijij->',dm2, optimize=True)
   if abs(trace-nelec*(nelec-1))<0.000001:
       print('(GOOD) Trace 2RDM: {:8} ={:5}*{:5}'.format(trace,nelec,nelec-1))
   else:
       print('(BAD)  Trace 2RDM: {:8}!={:5}*{:5}'.format(trace,nelec,nelec-1))
-  trace=numpy.einsum('ii->',dm1)
+  trace=numpy.einsum('ii->',dm1, optimize=True)
   if abs(trace-nelec)<0.000001:
       print('(GOOD) Trace 1RDM: {:8} ={:5}'.format(trace,nelec))
   else:
@@ -1485,20 +1483,21 @@ def icmpspt(mc, pttype="NEVPT", energyE0=0.0, rdmM=0, nfro=0, PTM=1000, PTincore
 
     # Remove the -1 state
     import os
-    os.system("rm -f %s/node0/Rotation*.state-1.tmp"%(mc.fcisolver.scratchDirectory))
-    os.system("rm -f %s/node0/wave*.-1.tmp"         %(mc.fcisolver.scratchDirectory))
-    #os.system("rm -f %s/node0/RestartReorder.dat_1" %(mc.fcisolver.scratchDirectory))
+    if hasattr(mc.fcisolver, 'startM'):
+      os.system("rm -f %s/node0/Rotation*.state-1.tmp"%(mc.fcisolver.scratchDirectory))
+      os.system("rm -f %s/node0/wave*.-1.tmp"         %(mc.fcisolver.scratchDirectory))
+      #os.system("rm -f %s/node0/RestartReorder.dat_1" %(mc.fcisolver.scratchDirectory))
 
-    # FCIsolver initiation
-    mc.fcisolver.startM = 100
-    mc.fcisolver.maxM = max(rdmM,501)
-    mc.fcisolver.clearSchedule()
-    mc.fcisolver.restart = False
-    mc.fcisolver.generate_schedule()
-    mc.fcisolver.extraline = []
-    if (PTincore):
-        mc.fcisolver.extraline.append('do_npdm_in_core')
-    mc.fcisolver.extraline += fciExtraLine
+      # FCIsolver initiation
+      mc.fcisolver.startM = 100
+      mc.fcisolver.maxM = max(rdmM,501)
+      mc.fcisolver.clearSchedule()
+      mc.fcisolver.restart = False
+      mc.fcisolver.generate_schedule()
+      mc.fcisolver.extraline = []
+      if (PTincore):
+          mc.fcisolver.extraline.append('do_npdm_in_core')
+      mc.fcisolver.extraline += fciExtraLine
     if (not have3RDM):
       mc.fcisolver.has_threepdm = False
     else:
